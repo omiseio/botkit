@@ -66,6 +66,7 @@ This bot demonstrates many of the core features of Botkit:
 
 var Botkit = require('./lib/Botkit.js')
 var os = require('os');
+var request = require('request');
 
 var controller = Botkit.slackbot({
   debug: false,
@@ -162,6 +163,41 @@ controller.hears(['uptime','identify yourself','who are you','what is your name'
 
   bot.reply(message,':robot_face: I am a bot named <@' + bot.identity.name +'>. I have been running for ' + uptime + ' on ' + hostname + ".");
 
+})
+
+controller.hears(['typeform'], 'direct_message,direct_mention,mention', function(bot,message) {
+
+  var uid     = process.env.TYPEFORM_UID;
+  var api_key = process.env.TYPEFORM_API_KEY;
+
+  if (!uid || !api_key) {
+    bot.reply(message, "typeform環境変数が設定されてないよ！");
+  }
+
+  var api_url = 'https://api.typeform.com/v0/form/' + uid + '?key=' + api_key + '&completed=true&limit=1&order_by[]=date_land,desc';
+
+  request(api_url, function (error, response, body) {
+    if (!error && response.statusCode == 200) {
+      var questions = {};
+      var res = JSON.parse(body);
+
+      res.questions.forEach(function(val) {
+        questions[val.id] = val.question;
+      });
+
+      var results = [];
+      res.responses.forEach(function(response, _index) {
+        var answers = [];
+        Object.keys(response.answers).forEach(function(key) {
+          var question = questions[key];
+          var answer = response.answers[key];
+          answers.push("Q: " + question + "\n A: " + answer + "\n");
+        });
+        results.push(answers.join("\n"));
+      });
+      bot.reply(message, "ok\n" + results.join("\n\n-----\n\n"));
+    }
+  });
 })
 
 function formatUptime(uptime) {
